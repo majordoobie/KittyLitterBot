@@ -2,6 +2,9 @@ from discord.ext import commands
 from discord import Embed
 from configparser import ConfigParser
 import os
+import datetime
+import aiohttp
+from io import BytesIO
 
 #Read config file for prefix and token
 config = ConfigParser()
@@ -15,6 +18,26 @@ def authorized(users_roles):
         if role.name == "CoC Leadership":
             return True
     return False
+
+@discord_client.command(pass_context=True)
+async def test():
+    # Get all the channels and find the one you're looking for
+    for channel in discord_client.get_all_channels():
+        if type(channel.type) != int:
+            if channel.name == "morestuff": # What ever channel you're looking into
+                async for message in discord_client.logs_from(channel, reverse = True):
+                    if message.attachments:
+                        async with aiohttp.ClientSession() as session:
+                            # note that it is often preferable to create a single session to use multiple times later - see below for this.
+                            async with session.get(message.attachments[0]['url']) as resp:
+                                buffer = BytesIO(await resp.read())
+
+                            await discord_client.send_file(discord_client.get_channel("513334681354240000"), fp=buffer, filename="something.png")
+
+                    elif message.content:
+                        await discord_client.send_message(discord_client.get_channel("513334681354240000"), message.content)
+                    
+
 
 @discord_client.event
 async def on_ready():
@@ -39,8 +62,16 @@ purged. After that config file is created you can begin to purge all or purge by
     /purrrge <regex>
         Displays the chanels your regex was able to pull and asks if you would like those purged
 
+    /archive <regex> destination
+        Move all the channels identified by your regex into the destinatino folder. It currently supports 
+        sorting by string_num and num. Otherwise, it will not sort the channel but will display the
+        title of the source channel.
+
     """
     await discord_client.say("```{}```".format(msg))
+
+
+
 
 @discord_client.command(pass_context=True, help="Create a config file with the channels you want to exclude from purging",
                             usage="/setup")
@@ -158,6 +189,89 @@ async def readconfig(ctx):
     else:
         await discord_client.say("There are no exclusion channels set. Please use /setup")
 
+@discord_client.command(pass_context=True)
+async def archive(ctx):
+    #Authorizor 
+    if authorized(ctx.message.author.roles):
+        pass
+    else:
+        await discord_client.say("Sorry, you don't have permission to use this.")
+        return
+    
+    # Check function for asking for user input
+    def check(msg):
+        if msg.content.lower() == 'no' or msg.content.lower() == 'yes':
+            return True
+        else:
+            return False
+
+    # check for the config file
+    if 'exclusions' in config.sections():
+        if len(config['exclusions'].keys()) < 1:
+            await discord_client.say("There are no exclusion channels set, use /setup")
+            return
+
+    
+    if len(ctx.message.content.split(' ')) == 3:
+        # Get the regex and destination argument
+        regex, destination = ctx.message.content.split(' ')[1:]
+
+        # Make sure the destination exists
+        dest_channel = None
+        for channel in discord_client.get_all_channels():
+            if channel.name == destination:
+                dest_channel = channel
+                await discord_client.say("Channel assigned: **{}**".format(dest_channel.name))
+        if dest_channel == None:
+            await discord_client.say("Could not find the channel supplied. Please check spelling.")
+            return
+
+        # Use the regex to find channels
+        purging_channels = []
+        for channel in discord_client.get_all_channels():
+            print(channel.name)
+            if type(channel.type) != int:
+                if channel.type.name == "text":
+                    if channel.name not in config['exclusions'].keys():
+                        if channel.name.lower().startswith(regex.lower()):
+                            print("Error?")
+                            print(channel.name)
+                            purging_channels.append(channel.name)
+
+        # Show the user what their regex pulled
+            # Custom sorting key
+        await discord_client.say("**Channels identified with your regex: **")
+        def dahkey(x):
+            if len(x.split('_')) == 1:
+                return x
+            elif len(x.split('_')) > 1:
+                x = x.split('_')
+                return x[0] + '_' + f'{int(x[1]):03d}'
+            else:
+                return x
+        
+        # Sort our listusing our custom key
+        purging_channels.sort(key=dahkey)
+        
+        # Stage the output
+        output = ' '
+        space = '      '
+        for i in purging_channels:
+            output += "```{} {}```".format(space, i)
+        await discord_client.say(output)
+        
+        # Ask if they're okay with what was identified
+        await discord_client.say("**Destinatino set to:*** {}".format(dest_channel.name))
+        await discord_client.say("Your regex returned the following channels to archive. Would you like to continue with the archive movement (Yes/No)")
+        msg = await discord_client.wait_for_message(author=ctx.message.author, check = check)
+        if msg.content.lower() == 'no':
+            return
+        elif msg.content.lower() == 'yes':
+            await discord_client.say("Everything working so far, now add the archive piece")
+    # If the incorrect number of arguments were given
+    else:
+        await discord_client.say("This command takes two arguments. Please use /help")
+        return
 
 @discord_client.command(aliases=['purge','clearall'], pass_context=True, description="Purrrge all channels except for those in the exclusion list.")
 async def purrrge(ctx):
@@ -213,7 +327,9 @@ async def purrrge(ctx):
         # Verify user about the shit they're going to purge
         await discord_client.say("**Current Channels to Purge:**")
         def dahkey(x):
-            if len(x.split('_')) > 1:
+            if len(x.split('_')) == 1:
+                return x
+            elif len(x.split('_')) > 1:
                 x = x.split('_')
                 return x[0] + '_' + f'{int(x[1]):03d}'
             else:

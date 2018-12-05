@@ -229,13 +229,10 @@ async def archive(ctx):
         # Use the regex to find channels
         purging_channels = []
         for channel in discord_client.get_all_channels():
-            print(channel.name)
             if type(channel.type) != int:
                 if channel.type.name == "text":
                     if channel.name not in config['exclusions'].keys():
                         if channel.name.lower().startswith(regex.lower()):
-                            print("Error?")
-                            print(channel.name)
                             purging_channels.append(channel.name)
 
         # Show the user what their regex pulled
@@ -245,8 +242,11 @@ async def archive(ctx):
             if len(x.split('_')) == 1:
                 return x
             elif len(x.split('_')) > 1:
-                x = x.split('_')
-                return x[0] + '_' + f'{int(x[1]):03d}'
+                if type(x.split('_')[-1]) == int:
+                    x = x.split('_')
+                    return x[0] + '_' + f'{int(x[1]):03d}'
+                else:
+                    return x
             else:
                 return x
         
@@ -261,13 +261,14 @@ async def archive(ctx):
         await discord_client.say(output)
         
         # Ask if they're okay with what was identified
-        await discord_client.say("**Destinatino set to:*** {}".format(dest_channel.name))
+        await discord_client.say("**Destinatino set to --->** {}".format(dest_channel.name))
         await discord_client.say("Your regex returned the following channels to archive. Would you like to continue with the archive movement (Yes/No)")
         msg = await discord_client.wait_for_message(author=ctx.message.author, check = check)
         if msg.content.lower() == 'no':
             return
         elif msg.content.lower() == 'yes':
             await discord_client.say("Everything working so far, now add the archive piece")
+
     # If the incorrect number of arguments were given
     else:
         await discord_client.say("This command takes two arguments. Please use /help")

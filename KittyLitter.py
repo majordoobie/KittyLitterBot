@@ -19,23 +19,21 @@ def authorized(users_roles):
             return True
     return False
 
+def dahkey(x):
+    if len(x.split('_')) == 1:
+        return x
+    elif len(x.split('_')) > 1:
+        if type(x.split('_')[-1]) == int:
+            x = x.split('_')
+            return x[0] + '_' + f'{int(x[1]):03d}'
+        else:
+            return x
+    else:
+        return x
+
 @discord_client.command(pass_context=True)
 async def test():
-    # Get all the channels and find the one you're looking for
-    for channel in discord_client.get_all_channels():
-        if type(channel.type) != int:
-            if channel.name == "morestuff": # What ever channel you're looking into
-                async for message in discord_client.logs_from(channel, reverse = True):
-                    if message.attachments:
-                        async with aiohttp.ClientSession() as session:
-                            # note that it is often preferable to create a single session to use multiple times later - see below for this.
-                            async with session.get(message.attachments[0]['url']) as resp:
-                                buffer = BytesIO(await resp.read())
-
-                            await discord_client.send_file(discord_client.get_channel("513334681354240000"), fp=buffer, filename="something.png")
-
-                    elif message.content:
-                        await discord_client.send_message(discord_client.get_channel("513334681354240000"), message.content)
+    pass
                     
 
 
@@ -110,19 +108,7 @@ async def setup(ctx):
         if type(channel.type) != int:
             if channel.type.name == 'text':
                 channel_list.append(channel.name)
-    
-
-    # sort the list and get the max length name for proper formating
-    def dahkey(x):
-        if len(x.split('_')) > 1:
-            if x.split('_')[-1].isdigit():
-                print()
-                x = x.split('_')
-                return x[0] + '_' + f'{int(x[1]):03d}'
-            else:
-                return x
-        else:
-            return x
+    # sort channel
     channel_list.sort(key=dahkey)
     
     char_length = 0
@@ -221,7 +207,6 @@ async def archive(ctx):
         for channel in discord_client.get_all_channels():
             if channel.name == destination:
                 dest_channel = channel
-                await discord_client.say("Channel assigned: **{}**".format(dest_channel.name))
         if dest_channel == None:
             await discord_client.say("Could not find the channel supplied. Please check spelling.")
             return
@@ -233,22 +218,14 @@ async def archive(ctx):
                 if channel.type.name == "text":
                     if channel.name not in config['exclusions'].keys():
                         if channel.name.lower().startswith(regex.lower()):
-                            purging_channels.append(channel.name)
+                            if channel.name.lower().endswith("archive"):
+                                pass
+                            else:
+                                purging_channels.append(channel.name)
 
         # Show the user what their regex pulled
             # Custom sorting key
         await discord_client.say("**Channels identified with your regex: **")
-        def dahkey(x):
-            if len(x.split('_')) == 1:
-                return x
-            elif len(x.split('_')) > 1:
-                if type(x.split('_')[-1]) == int:
-                    x = x.split('_')
-                    return x[0] + '_' + f'{int(x[1]):03d}'
-                else:
-                    return x
-            else:
-                return x
         
         # Sort our listusing our custom key
         purging_channels.sort(key=dahkey)
@@ -265,10 +242,23 @@ async def archive(ctx):
         await discord_client.say("Your regex returned the following channels to archive. Would you like to continue with the archive movement (Yes/No)")
         msg = await discord_client.wait_for_message(author=ctx.message.author, check = check)
         if msg.content.lower() == 'no':
-            return
+            return #dest_channel
         elif msg.content.lower() == 'yes':
-            await discord_client.say("Everything working so far, now add the archive piece")
-
+            await discord_client.say("Please standby while I archive the channel(s) selected. I will let you know when it is done. Be aware that this could take a while due to network traffic.")
+            for channel_str in purging_channels:
+                for channel in discord_client.get_all_channels():
+                    if channel.name == channel_str:
+                        async for message in discord_client.logs_from(channel, limit=1000, reverse = True, after = datetime.datetime.utcnow() - datetime.timedelta(days=5)):
+                            if message.attachments:
+                                async with aiohttp.ClientSession() as session:
+                                    # note that it is often preferable to create a single session to use multiple times later - see below for this.
+                                    async with session.get(message.attachments[0]['url']) as resp:
+                                        buffer = BytesIO(await resp.read())
+                                    await discord_client.send_file(dest_channel, fp=buffer, filename="something.png")
+                            elif message.content:
+                                await discord_client.send_message(dest_channel, message.content)
+            await discord_client.say("That took a while! Job is all done.")
+                                
     # If the incorrect number of arguments were given
     else:
         await discord_client.say("This command takes two arguments. Please use /help")
@@ -315,26 +305,21 @@ async def purrrge(ctx):
                         if channel.name not in config['exclusions'].keys():
                             await discord_client.say("Purrrrging {}".format(channel.name))
                             await discord_client.purge_from(channel)
-    else:
-        arg = ctx.message.content.split(' ')[1]
-        purging_channels = []
-        for channel in discord_client.get_all_channels():
-            if type(channel.type) != int:
-                if channel.type.name == "text":
-                    if channel.name not in config['exclusions'].keys():
-                        if channel.name.startswith(arg):
-                            purging_channels.append(channel.name)
+        else:
+            arg = ctx.message.content.split(' ')[1]
+            purging_channels = []
+            for channel in discord_client.get_all_channels():
+                if type(channel.type) != int:
+                    if channel.type.name == "text":
+                        if channel.name not in config['exclusions'].keys():
+                            if channel.name.lower().startswith(arg):
+                                if channel.name.lower().endswith("archive"):
+                                    pass
+                                else:
+                                    purging_channels.append(channel.name)
 
         # Verify user about the shit they're going to purge
         await discord_client.say("**Current Channels to Purge:**")
-        def dahkey(x):
-            if len(x.split('_')) == 1:
-                return x
-            elif len(x.split('_')) > 1:
-                x = x.split('_')
-                return x[0] + '_' + f'{int(x[1]):03d}'
-            else:
-                return x
         purging_channels.sort(key=dahkey)
         
         output = ' '
@@ -348,12 +333,14 @@ async def purrrge(ctx):
         if msg.content.lower() == 'no':
             return
         elif msg.content.lower() == 'yes':
+            await discord_client.say("Please stand by while I get to work. This may take a while due to network traffic.")
             for channel in discord_client.get_all_channels():
                 if type(channel.type) != int:
                     if channel.type.name == 'text':
                         if channel.name in purging_channels:
                                 await discord_client.say("Purrrrging {}".format(channel.name))
                                 await discord_client.purge_from(channel)
+            await discord_client.say("All done!")
             
             
 

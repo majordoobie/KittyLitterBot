@@ -248,6 +248,7 @@ async def archive(ctx):
             for channel_str in purging_channels:
                 for channel in discord_client.get_all_channels():
                     if channel.name == channel_str:
+                        await discord_client.send_message(dest_channel, "**Copied from {} on {}**\n\n\n".format(channel.name, datetime.datetime.utcnow()))
                         async for message in discord_client.logs_from(channel, limit=1000, reverse = True, after = datetime.datetime.utcnow() - datetime.timedelta(days=5)):
                             if message.attachments:
                                 async with aiohttp.ClientSession() as session:

@@ -116,6 +116,7 @@ async def setup(ctx):
         if len(channel) > char_length:
             char_length = len(channel)
 
+    print("hellp")
     # Print out the the screen
     output = ''
     space = ' '
@@ -123,6 +124,13 @@ async def setup(ctx):
         space_calc = char_length - len(channel)
         space_calc += 2
         output += "```{}: {} {}```".format(channel, (space * space_calc), index)
+
+    
+    # Failing on the numers aI think
+      
+    #failing
+
+
 
     # ask for which index they want of channels they want to add to the config exclusion list
     await discord_client.say(output)
@@ -197,7 +205,6 @@ async def archive(ctx):
             await discord_client.say("There are no exclusion channels set, use /setup")
             return
 
-    
     if len(ctx.message.content.split(' ')) == 3:
         # Get the regex and destination argument
         regex, destination = ctx.message.content.split(' ')[1:]

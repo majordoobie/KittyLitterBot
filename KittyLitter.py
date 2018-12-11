@@ -1,5 +1,6 @@
 from discord.ext import commands
 from discord import Embed
+import discord
 from configparser import ConfigParser
 import os
 import datetime
@@ -31,21 +32,47 @@ def dahkey(x):
     else:
         return x
 
-@discord_client.command(pass_context=True)
-async def test():
-    embed = Embed(title='Help Menu', description= "description", color=0x00ff00)
-    embed.add_field(name="Field1", value="hi", inline=False)
-    embed.add_field(name="Field2", value="hi2", inline=False)
-    await discord_client.say(embed=embed)
+# Check functino for the discord_client.wait_for(check=yesno_check)
+def yesno_check(m):
+        print(m.content)
+        if m.content == 'yes':
+            return m.content
+        elif m.content == 'no':
+            return m.content
+        
+
+@discord_client.command()
+async def test(ctx):
+    for i in discord_client.get_all_channels():
+        print(isinstance(i, discord.TextChannel))
+        return
+    #     print(i.category) #cat name
+    #     print(i.category_id) #cat ID
+    #     print(i.guild)  # discord name
+    #     print(i.id)     #CHANNEL ID 
+    #     print(i.name)   #name of channel
+    #     async for j in i.history():
+    #         print(j.created_at)
+    #         print(j.type)
+            
+    #     #print(i.members)
+    #     print("---------------")
+    # category_list = discord_client.guilds[0].categories 
+    # for i in category_list:
+    #     print(i)
+    
+        
 
 
 @discord_client.event
 async def on_ready():
     print("Bot connected.")
+    game = discord.Game("with cat nip~")
+    await discord_client.change_presence(status=discord.Status.idle, activity=game)
     
 
-@discord_client.command(pass_context=True)
-async def help():
+@discord_client.command()
+async def help(ctx):
     desc = ("KittyLitter is used to archive and purge channels after war/cwl. It must first be set up by running /setup. "
     "Setup will prompt you for the categories in the channel i.e. traditional_war and then prompt you for an "
     "anchor. An anchor is a regex you can use to identify the channels within the categories i.e. warroom "
@@ -80,25 +107,18 @@ async def help():
     embed.add_field(name="/archive <category>", value=archive_descc, inline=False)
     embed.add_field(name="/purge", value=purge_desc, inline=False)
     embed.add_field(name="/purge <category>", value=prige_descc, inline=False)
-    await discord_client.say(embed=embed)
+    await ctx.send(embed=embed)
 
 
 
 
-@discord_client.command(pass_context=True, help="Create a config file with the channels you want to exclude from purging",
-                            usage="/setup")
+@discord_client.command()
 async def setup(ctx):
     if authorized(ctx.message.author.roles):
         pass
     else:
-        await discord_client.say("Sorry, you don't have permission to use this.")
+        await ctx.send("Sorry, you don't have permission to use this.")
         return
-
-    def check(msg):
-        if msg.content.lower() == 'no' or msg.content.lower() == 'yes':
-            return True
-        else:
-            return False
         
     def inter(msg):
         if msg.content in ['0', '1', 'q', 'Q']:
@@ -107,21 +127,21 @@ async def setup(ctx):
         
     # Way to control the options chosen by the user
     categorize = False
-    exclusionize = True
+    exclusionize = False
 
     # Ask to set up either category or exclusions 
-    await discord_client.say("Would you like to setup your discord categories or exclusions?")
-    await discord_client.say("```Categories:    0 <-- Rec First``````Exclusions:    1``````Quit:          q```")
-    msg = await discord_client.wait_for_message(author=ctx.message.author, check = inter)
+    await ctx.send("Would you like to setup your discord categories or exclusions?")
+    await ctx.send("```Categories:    0 <-- Rec First``````Exclusions:    1``````Quit:          q```")
+    msg = await discord_client.wait_for('message', check = inter)
     if msg.content.lower() == 'q':
-        await discord_client.say("Aborting.")
+        await ctx.send("Aborting.")
         return
     elif msg.content == '0':
         categorize = True
     elif msg.content == '1':
         exclusionize = True
     else:
-        await discord_client.say("Timedout or user entry not understood. Aborting.")
+        await ctx.send("Timed out or user entry not understood. Aborting.")
         return
 
 ############################################################################################################ -- > category
@@ -130,8 +150,8 @@ async def setup(ctx):
         # Ask if they want to clear our their category or continue
         if 'categories' in config.sections():
             if len(config['categories'].keys()) > 0:
-                await discord_client.say("Exclusions already exist, if you continue you will **clear** the exclusion list and startover. Would you like to continue? (Yes/No)")
-                msg = await discord_client.wait_for_message(author=ctx.message.author, check = check)
+                await ctx.send("Exclusions already exist, if you continue you will **clear** the exclusion list and startover. Would you like to continue? (Yes/No)")
+                msg = await discord_client.wait_for('message', check = yesno_check)
                 if msg.content.lower() == 'no':
                     return
                 elif msg.content.lower() == 'yes':
@@ -139,47 +159,43 @@ async def setup(ctx):
                         config['categories'].pop(i)
                     with open('KittyLitterConfig.ini', 'w') as f:
                         config.write(f)
-                    await discord_client.say("Purrrrging. Done.")
+                    await ctx.send("Purrrrging. Done.")
         else:
             config.add_section('categories')
 
         # collect all the categories and ask if there is any they want to add
-        category_list = []
-        for channel in discord_client.get_all_channels():
-            if type(channel.type) != int:
-                if channel.type.name == 'category':
-                    category_list.append(channel.name)
+        category_list = discord_client.guilds[0].categories
 
 
         # Calculate the space to add when printing
         char_length = 0
         for channel in category_list:
-            if len(channel) > char_length:
-                char_length = len(channel)
+            if len(channel.name) > char_length:
+                char_length = len(channel.name)
 
         # Set up printing variable
         output = ''
         space = ' '
         for index, channel in enumerate(category_list):
-            space_calc = char_length - len(channel)
+            space_calc = char_length - len(channel.name)
             space_calc += 2
-            output += "```{}: {} {}```".format(channel, (space * space_calc), index)
+            output += "```{}: {} {}```".format(channel.name, (space * space_calc), index)
 
         # ask for which index they want of channels they want to add to the config exclusion list
-        await discord_client.say(output)
-        msg = "**Please help me identify all the categories you would like me to identify as 'war channels'.**"
-        await discord_client.say(msg)
-        msg = await discord_client.wait_for_message(author=ctx.message.author)
+        await ctx.send(output)
+        msg = "**Please select the categories that will be flagged as war channels.**\nUse space seperated integers."
+        await ctx.send(msg)
+        msg = await discord_client.wait_for('message')
 
         # Actual selection list
         selection = []
         for num in msg.content.split(' '):
             if num.isdigit() == False:
-                await discord_client.say("Input error detected. One of the inputs was not a integer. Exiting.")
+                await ctx.send("Input error detected. One of the inputs was not a integer. Exiting.")
                 return
             elif num.isdigit():
                 if int(num) >= len(category_list):
-                    await discord_client.say("Input error detected. One of the inputs is not within the range of allowed inputs. Exiting.")
+                    await ctx.send("Input error detected. One of the inputs is not within the range of allowed inputs. Exiting.")
                     return
                 else:
                     selection.append(num)
@@ -188,61 +204,60 @@ async def setup(ctx):
         # Add exclusions to the config file
         for num in selection:
             if int(num) < len(category_list):
-                await discord_client.say("What is a good anchor regex for this category? --> **{}**".format(category_list[int(num)]))
-                msg = await discord_client.wait_for_message(author=ctx.message.author)
-                config.set('categories',category_list[int(num)], msg.content)
+                await ctx.send("What is a good anchor regex for this category? --> **{}**".format(category_list[int(num)].name))
+                msg = await discord_client.wait_for('message')
+                config.set('categories',category_list[int(num)].name, msg.content)
 
         # write the config file to disc
         with open('KittyLitterConfig.ini', 'w') as f:
             config.write(f)
         
-        await discord_client.say("Categories set. You can verify with /readconfig or run /setup again for exclusions")
+        await ctx.send("Categories set. You can verify with /readconfig or run /setup again for exclusions\n")
 ############################################################################################################ -- > categories
 ############################################################################################################ -- > exclusions
-    # Check to see if the config file is there
-    if 'exclusions' in config.sections():
-        if len(config['exclusions'].keys()) > 0:
-            await discord_client.say("Exclusions already exist, if you continue you will **clear** the exclusion list and startover. Would you like to continue? (Yes/No)")
-            msg = await discord_client.wait_for_message(author=ctx.message.author, check = check)
-            if msg.content.lower() == 'no':
-                return
-            elif msg.content.lower() == 'yes':
-                for i in config['exclusions']:
-                    config['exclusions'].pop(i)
-                with open('KittyLitterConfig.ini', 'w') as f:
-                    config.write(f)
-                await discord_client.say("Purrrrging. Done.")
+    if exclusionize == False:
+        await ctx.send("Would you like to continue with exclusions on setup? You can do this later. (Yes/No)")
+        msg = await discord_client.wait_for('message', check=yesno_check)
+        if msg.content == 'no':
+            await ctx.send("Okay, you can check the current settings with /readconfig.")
+            return
+        elif msg.content == 'yes':
+            exclusionize = True
+    if exclusionize:
+        # Check to see if the config file is there
+        if 'exclusions' in config.sections():
+            if len(config['exclusions'].keys()) > 0:
+                await ctx.send("Exclusions already exist, if you continue you will **clear** the exclusion list and startover. Would you like to continue? (Yes/No)")
+                msg = await discord_client.wait_for('message', check = yesno_check)
+                if msg.content.lower() == 'no':
+                    return
+                elif msg.content.lower() == 'yes':
+                    for i in config['exclusions']:
+                        config['exclusions'].pop(i)
+                    with open('KittyLitterConfig.ini', 'w') as f:
+                        config.write(f)
+                    await ctx.send("Clearing exclusions.")
+        else:
+            config.add_section('exclusions')
     else:
-        config.add_section('exclusions')
+        return
 
     # Grab all the war channels to exclude them from exclusions LOL
-    warchannels = []
+    warchannels = [] #contains category names
     if len(config['categories'].keys()) > 0:
-        for i in config['categories'].values():
-            warchannels.append(i)
+        for i in config['categories'].keys():
+            warchannels.append(i.lower())
     else:
-        await discord_client.say("There are no categories identified. If you don't setup the categories you will get a massive list of channels to exclude. Would you like to continue? (Yes/No)")
-        msg = await discord_client.wait_for_message(author=ctx.message.author)
-        if msg.content.lower() == 'no':
-            return
-        elif msg.content.lower() == 'yes':
-            pass
-        else:
-            await discord_client.say("Input error. Aborting.")
-            return
+        await ctx.send("There are no categories identified. Please follow option one to set up categories for war.")
+        return
     
-
     # get the list of all channels on the server
     channel_list = []
     for channel in discord_client.get_all_channels():
-        if type(channel.type) != int:
-            if channel.type.name == 'text':
-                if channel.name.lower().startswith(tuple(warchannels)):
-                    continue
-                else:
-                    channel_list.append(channel.name)
+        if str(channel.category).lower() not in warchannels:
+            if isinstance(channel, discord.TextChannel):
+                channel_list.append(channel.name)
     
-   
     # sort channel
     channel_list.sort(key=dahkey)
 
@@ -262,19 +277,19 @@ async def setup(ctx):
 
 
     # ask for which index they want of channels they want to add to the config exclusion list
-    await discord_client.say(output)
+    await ctx.send(output)
     msg = "Please enter the number of the channel you would like to exclude from purging. You can provide a list of space seperated numbers."
-    await discord_client.say(msg)
-    msg = await discord_client.wait_for_message(author=ctx.message.author)
+    await ctx.send(msg)
+    msg = await discord_client.wait_for('message')
     selection = []
     for num in msg.content.split(' '):
         if num.isdigit() == False:
-            await discord_client.say("Input error detected. One of the inputs was not a integer. Exiting.")
+            await ctx.send("Input error detected. One of the inputs was not a integer. Exiting.")
             return
 
         elif num.isdigit():
             if int(num) >= len(channel_list):
-                await discord_client.say("Input error detected. One of the inputs is not within the range of allowed inputs. Exiting.")
+                await ctx.send("Input error detected. One of the inputs is not within the range of allowed inputs. Exiting.")
                 return
             else:
                 selection.append(num)
@@ -288,7 +303,7 @@ async def setup(ctx):
     with open('KittyLitterConfig.ini', 'w') as f:
         config.write(f)
     
-    await discord_client.say("Exclusion rules set. You can verify with /readconfig.")
+    await ctx.send("Exclusion rules set. You can verify with /readconfig.")
 
 ############################################################################################################ -- > exclusions
 
@@ -298,34 +313,34 @@ async def readconfig(ctx):
     if authorized(ctx.message.author.roles):
         pass
     else:
-        await discord_client.say("Sorry, you don't have permission to use this.")
+        await ctx.send("Sorry, you don't have permission to use this.")
         return
 
     if 'exclusions' in config.sections():
         if len(config['exclusions'].keys()) > 0:
-            await discord_client.say("**Current Exclusions:**")
+            await ctx.send("**Current Exclusions:**")
             space = '      '
             output = "```{} |{}|```".format(space, "Channel")
             for i in config['exclusions'].keys():
                 output += "```{} {}```".format(space, i)
-            await discord_client.say(output)
+            await ctx.send(output)
         else:
-            await discord_client.say("There are no exclusion channels set. Please use /setup")
+            await ctx.send("There are no exclusion channels set. Please use /setup")
     else:
-        await discord_client.say("There are no exclusion channels set. Please use /setup")
+        await ctx.send("There are no exclusion channels set. Please use /setup")
 
     if 'categories' in config.sections():
         if len(config['categories'].keys()) > 0:
-            await discord_client.say("**Current Categories Identified:**")
+            await ctx.send("**Current Categories Identified:**")
             space = '      '
             output = "```{} |{}|    |{}|```".format(space, "Category", "Regex")
             for i,e in config['categories'].items():
                 output += "```{} {} -> {}```".format(space, i, e)
-            await discord_client.say(output)
+            await ctx.send(output)
         else:
-            await discord_client.say("There are no exclusion channels set. Please use /setup")
+            await ctx.send("There are no exclusion channels set. Please use /setup")
     else:
-        await discord_client.say("There are no exclusion channels set. Please use /setup")
+        await ctx.send("There are no exclusion channels set. Please use /setup")
     
 
 @discord_client.command(pass_context=True)
@@ -334,20 +349,13 @@ async def archive(ctx):
     if authorized(ctx.message.author.roles):
         pass
     else:
-        await discord_client.say("Sorry, you don't have permission to use this.")
+        await ctx.send("Sorry, you don't have permission to use this.")
         return
-    
-    # Check function for asking for user input
-    def check(msg):
-        if msg.content.lower() == 'no' or msg.content.lower() == 'yes':
-            return True
-        else:
-            return False
 
     # check for the config file
     if 'exclusions' in config.sections():
         if len(config['exclusions'].keys()) < 1:
-            await discord_client.say("There are no exclusion channels set, use /setup")
+            await ctx.send("There are no exclusion channels set, use /setup")
             return
 
     if len(ctx.message.content.split(' ')) == 3:
@@ -360,7 +368,7 @@ async def archive(ctx):
             if channel.name == destination:
                 dest_channel = channel
         if dest_channel == None:
-            await discord_client.say("Could not find the channel supplied. Please check spelling.")
+            await ctx.send("Could not find the channel supplied. Please check spelling.")
             return
 
         # Use the regex to find channels
@@ -377,7 +385,7 @@ async def archive(ctx):
 
         # Show the user what their regex pulled
 
-        await discord_client.say("**Channels identified with your regex: **")
+        await ctx.send("**Channels identified with your regex: **")
         
         # Sort our listusing our custom key
         purging_channels.sort(key=dahkey)
@@ -387,16 +395,16 @@ async def archive(ctx):
         space = '      '
         for i in purging_channels:
             output += "```{} {}```".format(space, i)
-        await discord_client.say(output)
+        await ctx.send(output)
         
         # Ask if they're okay with what was identified
-        await discord_client.say("**Destinatino set to --->** {}".format(dest_channel.name))
-        await discord_client.say("Your regex returned the following channels to archive. Would you like to continue with the archive movement (Yes/No)")
-        msg = await discord_client.wait_for_message(author=ctx.message.author, check = check)
+        await ctx.send("**Destinatino set to --->** {}".format(dest_channel.name))
+        await ctx.send("Your regex returned the following channels to archive. Would you like to continue with the archive movement (Yes/No)")
+        msg = await discord_client.wait_for('message', check = yesno_check)
         if msg.content.lower() == 'no':
             return #dest_channel
         elif msg.content.lower() == 'yes':
-            await discord_client.say("Please standby while I archive the channel(s) selected. I will let you know when it is done. Be aware that this could take a while due to network traffic.")
+            await ctx.send("Please standby while I archive the channel(s) selected. I will let you know when it is done. Be aware that this could take a while due to network traffic.")
             for channel_str in purging_channels:
                 for channel in discord_client.get_all_channels():
                     if channel.name == channel_str:
@@ -410,11 +418,11 @@ async def archive(ctx):
                                     await discord_client.send_file(dest_channel, fp=buffer, filename="something.png")
                             elif message.content:
                                 await discord_client.send_message(dest_channel, message.content)
-            await discord_client.say("That took a while! Job is all done.")
+            await ctx.send("That took a while! Job is all done.")
                                 
     # If the incorrect number of arguments were given
     else:
-        await discord_client.say("This command takes two arguments. Please use /help")
+        await ctx.send("This command takes two arguments. Please use /help")
         return
 
 @discord_client.command(aliases=['purge','clearall'], pass_context=True, description="Purrrge all channels except for those in the exclusion list.")
@@ -422,7 +430,7 @@ async def purrrge(ctx):
     if authorized(ctx.message.author.roles):
         pass
     else:
-        await discord_client.say("Sorry, you don't have permission to use this.")
+        await ctx.send("Sorry, you don't have permission to use this.")
         return
 
     def check(msg):
@@ -434,20 +442,20 @@ async def purrrge(ctx):
     # check for the config file
     if 'exclusions' in config.sections():
         if len(config['exclusions'].keys()) < 1:
-            await discord_client.say("There are no exclusion channels set, use /setup")
+            await ctx.send("There are no exclusion channels set, use /setup")
             return
 
     # list exclusion files
-    await discord_client.say("**Current Exclusions:**")
+    await ctx.send("**Current Exclusions:**")
     output = ' '
     space = '      '
     for i in config['exclusions'].keys():
         output += "```{} {}```".format(space, i)
-    await discord_client.say(output)
+    await ctx.send(output)
 
     # ask for comfirmation
-    await discord_client.say("Exclusion channels are currently set to the list above. Would you like to continue? (Yes/No)")
-    msg = await discord_client.wait_for_message(author=ctx.message.author, check=check)
+    await ctx.send("Exclusion channels are currently set to the list above. Would you like to continue? (Yes/No)")
+    msg = await discord_client.wait_for(author=ctx.message.author, check=check)
     if msg.content.lower() == 'no':
         return
     elif msg.content.lower() == 'yes':  # This is where you left off, can't print shit
@@ -456,7 +464,7 @@ async def purrrge(ctx):
                 if type(channel.type) != int:
                     if channel.type.name == 'text':
                         if channel.name not in config['exclusions'].keys():
-                            await discord_client.say("Purrrrging {}".format(channel.name))
+                            await ctx.send("Purrrrging {}".format(channel.name))
                             await discord_client.purge_from(channel)
         else:
             arg = ctx.message.content.split(' ')[1]
@@ -472,28 +480,28 @@ async def purrrge(ctx):
                                     purging_channels.append(channel.name)
 
         # Verify user about the shit they're going to purge
-        await discord_client.say("**Current Channels to Purge:**")
+        await ctx.send("**Current Channels to Purge:**")
         purging_channels.sort(key=dahkey)
         
         output = ' '
         space = '      '
         for i in purging_channels:
             output += "```{} {}```".format(space, i)
-        await discord_client.say(output)
+        await ctx.send(output)
         
-        await discord_client.say("Your regex returned the following channels to purge. Would you like to purge (Yes/No)")
-        msg = await discord_client.wait_for_message(author=ctx.message.author, check = check)
+        await ctx.send("Your regex returned the following channels to purge. Would you like to purge (Yes/No)")
+        msg = await discord_client.wait_for(author=ctx.message.author, check = check)
         if msg.content.lower() == 'no':
             return
         elif msg.content.lower() == 'yes':
-            await discord_client.say("Please stand by while I get to work. This may take a while due to network traffic.")
+            await ctx.send("Please stand by while I get to work. This may take a while due to network traffic.")
             for channel in discord_client.get_all_channels():
                 if type(channel.type) != int:
                     if channel.type.name == 'text':
                         if channel.name in purging_channels:
-                                await discord_client.say("Purrrrging {}".format(channel.name))
+                                await ctx.send("Purrrrging {}".format(channel.name))
                                 await discord_client.purge_from(channel)
-            await discord_client.say("All done!")
+            await ctx.send("All done!")
             
             
 

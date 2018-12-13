@@ -52,47 +52,6 @@ def get_channel(channel_str):
 async def test(ctx):
     pass
 
-
-    # collect all the categories and ask if there is any they want to add
-    #print(dir(discord_client.guilds[0].categories.index('ARCHVIES')))
-    # arch = ''
-    # for i in discord_client.guilds[0].categories:
-    #     if i.name == 'ARCHIVES':
-    #         arch = i
-    # for i in dir(arch):
-    #     print(i)
-
-    # async with ctx.typing():
-    #     for i in discord_client.guilds[0].by_category():
-    #         if isinstance(i[0], discord.channel.CategoryChannel):
-    #             if i[0].name.upper() == 'ARCHIVES':
-    #                 print(i[0].name)
-    #                 for j in i[0].channels:
-    #                     print(j.name)
-        
-    # for i in category_list:
-    #     if i.name.upper() == 'ARCHIVES':
-    #         print("it's there {}".format(i.name))
-    #     else:
-    #         pass
-    # for i in discord_client.get_all_channels():
-    #     print(isinstance(i, discord.TextChannel))
-    #     return
-    #     print(i.category) #cat name
-    #     print(i.category_id) #cat ID
-    #     print(i.guild)  # discord name
-    #     print(i.id)     #CHANNEL ID 
-    #     print(i.name)   #name of channel
-    #     async for j in i.history():
-    #         print(j.created_at)
-    #         print(j.type)
-            
-    #     #print(i.members)
-    #     print("---------------")
-    # category_list = discord_client.guilds[0].categories 
-    # for i in category_list:
-    #     print(i)
-    
         
 
 
@@ -459,84 +418,85 @@ async def archive(ctx):
             else:
                 await ctx.send("Input error. Aborting.")
 
-        # Check if they're doing a archive all or archive a channel
-        if len(ctx.message.content.split(' ')) == 1:
-            #game = discord.Game("with cat nip~")
+    # Check if they're doing a archive all or archive a channel
+    if len(ctx.message.content.split(' ')) == 1:
+        #game = discord.Game("with cat nip~")
+        activity = discord.Activity(type = discord.ActivityType.watching, name="the archives")
+        await discord_client.change_presence(status=discord.Status.dnd, activity=activity)
+        async with ctx.typing():
+            # Retrive the archive channels
+            for key, value in config['categories'].items():                             
+                for cat_obj in discord_client.guilds[0].categories:                    
+                    if cat_obj.name.upper() == key.upper():
+                        dest_channel = get_channel(value)                             
+                        for channel_obj in cat_obj.channels:
+                            await ctx.send("Archiving: {}".format(channel_obj.name))
+                            await dest_channel.send("```.```")
+                            await dest_channel.send("```Archiving from: {}```".format(channel_obj.name))
+                            await dest_channel.send("```.```")
+                            async for message in channel_obj.history(limit=10000, reverse = True, after = datetime.datetime.utcnow() - datetime.timedelta(days=50)):
+                                send_message = "**[{}]** {}".format(message.author, message.clean_content)
+                                files = []
+                                if message.attachments:
+                                    async with aiohttp.ClientSession() as session:
+                                        for attachment_obj in message.attachments:
+                                            async with session.get(attachment_obj.url) as resp:
+                                                buffer = io.BytesIO(await resp.read())
+                                                files.append(discord.File(fp=buffer, filename=attachment_obj.filename))
+                                files = files or None
+                                await dest_channel.send(send_message, files=files)
+                    else:
+                        continue 
+        game = discord.Game("with cat nip~")
+        await discord_client.change_presence(status=discord.Status.online, activity=game)         
+        await ctx.send("All done!")                     
+        return
+
+    if len(ctx.message.content.split(' ')) == 2 or len(ctx.message.content.split(' ')) == 3:
+        valid = False
+        dest_str = ''
+        cat_str = ' '.join(ctx.message.content.split(' ')[1:])
+        for key,value in config['categories'].items():
+            if key.lower() == cat_str.lower():
+                valid = True
+                dest_str = value
+            else:
+                continue
+
+        if valid == False:
+            await ctx.send("Must supply a valid category. Please see /help")
+            return
+
+        if valid:
             activity = discord.Activity(type = discord.ActivityType.watching, name="the archives")
             await discord_client.change_presence(status=discord.Status.dnd, activity=activity)
             async with ctx.typing():
-                # Retrive the archive channels
-                for key, value in config['categories'].items():                             
-                    for cat_obj in discord_client.guilds[0].categories:                    
-                        if cat_obj.name.upper() == key.upper():
-                            dest_channel = get_channel(value)                             
-                            for channel_obj in cat_obj.channels:
-                                await ctx.send("Archiving: {}".format(channel_obj.name))
-                                await dest_channel.send("```.```")
-                                await dest_channel.send("```Archiving from: {}```".format(channel_obj.name))
-                                await dest_channel.send("```.```")
-                                async for message in channel_obj.history(limit=10000, reverse = True, after = datetime.datetime.utcnow() - datetime.timedelta(days=50)):
-                                    send_message = "**[{}]** {}".format(message.author, message.clean_content)
-                                    files = []
-                                    if message.attachments:
-                                        async with aiohttp.ClientSession() as session:
-                                            for attachment_obj in message.attachments:
-                                                async with session.get(attachment_obj.url) as resp:
-                                                    buffer = io.BytesIO(await resp.read())
-                                                    files.append(discord.File(fp=buffer, filename=attachment_obj.filename))
-                                    files = files or None
-                                    await dest_channel.send(send_message, files=files)
-                        else:
-                            continue 
+            # Retrive the archive channels                           
+                for cat_obj in discord_client.guilds[0].categories:                    
+                    if cat_obj.name.upper() == cat_str.upper():
+                        dest_channel = get_channel(dest_str)                             
+                        for channel_obj in cat_obj.channels:
+                            await ctx.send("Archiving: {}".format(channel_obj.name))
+                            await dest_channel.send("```.```")
+                            await dest_channel.send("```Archiving from: {}```".format(channel_obj.name))
+                            await dest_channel.send("```.```")
+                            async for message in channel_obj.history(limit=10000, reverse = True, after = datetime.datetime.utcnow() - datetime.timedelta(days=50)):
+                                send_message = "**[{}]** {}".format(message.author, message.clean_content)
+                                files = []
+                                if message.attachments:
+                                    async with aiohttp.ClientSession() as session:
+                                        for attachment_obj in message.attachments:
+                                            async with session.get(attachment_obj.url) as resp:
+                                                buffer = io.BytesIO(await resp.read())
+                                                files.append(discord.File(fp=buffer, filename=attachment_obj.filename))
+                                files = files or None
+                                await dest_channel.send(send_message, files=files)
+                    else:
+                        continue 
             game = discord.Game("with cat nip~")
-            activity = discord.Activity(type = discord.ActivityType.online, name=game)           
-            await ctx.send("All done!")                     
-            return
-        if len(ctx.message.content.split(' ')) == 2 or len(ctx.message.content.split(' ')) == 3:
-            valid = False
-            dest_str = ''
-            cat_str = ' '.join(ctx.message.content.split(' ')[1:])
-            for key,value in config['categories'].items():
-                if key.lower() == cat_str.lower():
-                    valid = True
-                    dest_str = value
-                else:
-                    continue
-
-            if valid == False:
-                await ctx.send("Must supply a valid category. Please see /help")
-                return
-
-            if valid:
-                activity = discord.Activity(type = discord.ActivityType.watching, name="the archives")
-                await discord_client.change_presence(status=discord.Status.dnd, activity=activity)
-                async with ctx.typing():
-                # Retrive the archive channels                           
-                    for cat_obj in discord_client.guilds[0].categories:                    
-                        if cat_obj.name.upper() == cat_str.upper():
-                            dest_channel = get_channel(dest_str)                             
-                            for channel_obj in cat_obj.channels:
-                                await ctx.send("Archiving: {}".format(channel_obj.name))
-                                await dest_channel.send("```.```")
-                                await dest_channel.send("```Archiving from: {}```".format(channel_obj.name))
-                                await dest_channel.send("```.```")
-                                async for message in channel_obj.history(limit=10000, reverse = True, after = datetime.datetime.utcnow() - datetime.timedelta(days=50)):
-                                    send_message = "**[{}]** {}".format(message.author, message.clean_content)
-                                    files = []
-                                    if message.attachments:
-                                        async with aiohttp.ClientSession() as session:
-                                            for attachment_obj in message.attachments:
-                                                async with session.get(attachment_obj.url) as resp:
-                                                    buffer = io.BytesIO(await resp.read())
-                                                    files.append(discord.File(fp=buffer, filename=attachment_obj.filename))
-                                    files = files or None
-                                    await dest_channel.send(send_message, files=files)
-                        else:
-                            continue 
-                game = discord.Game("with cat nip~")
-                await discord_client.change_presence(status=discord.Status.online, activity=game)          
-                await ctx.send("All done!")
-                return  
+            await discord_client.change_presence(status=discord.Status.online, activity=game)          
+            await ctx.send("All done!")
+            return  
 
 
 @discord_client.command(aliases=['purge','clearall'])
@@ -587,14 +547,29 @@ async def purrrge(ctx):
         else:
             pass
 
-        activity = discord.Activity(type = discord.ActivityType.watching, name="messages getting nuked")
+        activity = discord.Activity(type = discord.ActivityType.watching, name="messages get nuked")
         await discord_client.change_presence(status=discord.Status.dnd, activity=activity)
+
+        desc = ("Please use this channel to paste a screenshot of your enemy base. It will be helpful to "
+        "annotate the screenshot with arrows along with your thought process of how you're going to wreck your enemy. "
+        "Then go ahead a ping your friends to get feedback! Happy warring.")
+        desc_Helper = ("Use the @Helpers first to see if there is anyone assigned for assisting on.")
+        desc_TH =("Alternatively you can use the @TH# tag to get advice from folks in your TH level.")
+        desc_leader=("Lastly, if those two fail you can always tag our leaders with @CoC Leadership")
+
+        
+        embed = Embed(title='WELCOME!', description= desc, color=0x8A2BE2)
+        embed.add_field(name="@Helpers", value=desc_Helper, inline=True)
+        embed.add_field(name="@TH#s", value=desc_TH, inline=True)
+        embed.add_field(name="@CoC Leadership", value=desc_leader, inline=True)
+
         async with ctx.typing():
             for key in config['categories'].keys():
                 for cat_obj in discord_client.guilds[0].categories:
                     if cat_obj.name.upper() == key.upper():
                         for channel_obj in cat_obj.channels:
                             deleted = await channel_obj.purge(bulk=True)
+                            await channel_obj.send(embed=embed)
                             await ctx.send("Deleted {} message(s) from {}".format(len(deleted), channel_obj.name))
         
         game = discord.Game("with cat nip~")
@@ -625,7 +600,7 @@ async def purrrge(ctx):
             return
 
         if valid:
-            desc = ("I will not purge {}. This can not be undone. Please be sure to have archived this "
+            desc = ("I will now purge {}. This can not be undone. Please be sure to have archived this "
             "channel before proceeding. \n\nplease type to purge: KittyLitterBot".format(channel_ob.name))
             await ctx.send(embed = Embed(title='WARNING!', description= desc, color=0xFF0000)) 
             

@@ -52,9 +52,6 @@ def get_channel(channel_str):
 async def test(ctx):
     pass
 
-        
-
-
 @discord_client.event
 async def on_ready():
     print("Bot connected.")
@@ -62,7 +59,11 @@ async def on_ready():
     await discord_client.change_presence(status=discord.Status.online, activity=game)
 
     
-    
+@discord_client.command()
+async def killswitch(ctx):
+    await ctx.send("Cleaning up then exiting.")
+    await discord_client.logout()
+
 
 @discord_client.command()
 async def help(ctx):
@@ -421,7 +422,7 @@ async def archive(ctx):
     # Check if they're doing a archive all or archive a channel
     if len(ctx.message.content.split(' ')) == 1:
         #game = discord.Game("with cat nip~")
-        activity = discord.Activity(type = discord.ActivityType.watching, name="the archives")
+        activity = discord.Activity(type = discord.ActivityType.watching, name="channels get archvied")
         await discord_client.change_presence(status=discord.Status.dnd, activity=activity)
         async with ctx.typing():
             # Retrive the archive channels
@@ -431,9 +432,7 @@ async def archive(ctx):
                         dest_channel = get_channel(value)                             
                         for channel_obj in cat_obj.channels:
                             await ctx.send("Archiving: {}".format(channel_obj.name))
-                            await dest_channel.send("```.```")
                             await dest_channel.send("```Archiving from: {}```".format(channel_obj.name))
-                            await dest_channel.send("```.```")
                             async for message in channel_obj.history(limit=10000, reverse = True, after = datetime.datetime.utcnow() - datetime.timedelta(days=50)):
                                 send_message = "**[{}]** {}".format(message.author, message.clean_content)
                                 files = []
@@ -468,7 +467,7 @@ async def archive(ctx):
             return
 
         if valid:
-            activity = discord.Activity(type = discord.ActivityType.watching, name="the archives")
+            activity = discord.Activity(type = discord.ActivityType.watching, name="channels get archived")
             await discord_client.change_presence(status=discord.Status.dnd, activity=activity)
             async with ctx.typing():
             # Retrive the archive channels                           
@@ -535,6 +534,19 @@ async def purrrge(ctx):
         pass
 
 
+    desc = ("Please use this channel to paste a screenshot of your enemy base. It will be helpful to "
+    "annotate the screenshot with arrows along with your thought process of how you're going to wreck your enemy. "
+    "Then go ahead a ping your friends to get feedback! Happy warring.")
+    desc_Helper = ("Use the @Helpers first to see if there is anyone assigned for assisting on.")
+    desc_TH =("Alternatively you can use the @TH# tag to get advice from folks in your TH level.")
+    desc_leader=("Lastly, if those two fail you can always tag our leaders with @CoC Leadership")
+
+    
+    newchannel = Embed(title='WELCOME!', description= desc, color=0x8A2BE2)
+    newchannel.add_field(name="@Helpers", value=desc_Helper, inline=True)
+    newchannel.add_field(name="@TH#s", value=desc_TH, inline=True)
+    newchannel.add_field(name="@CoC Leadership", value=desc_leader, inline=True)
+
     if len(ctx.message.content.split(' ')) == 1:
         desc = ("I will now begin to purge all the channels under the war channels identified in /readconfig. Please "
         "be sure to have archived the files before continuing. This cannot be undone. Would you like to proceed? \n\nplease type: KittyLitterBot")
@@ -550,18 +562,7 @@ async def purrrge(ctx):
         activity = discord.Activity(type = discord.ActivityType.watching, name="messages get nuked")
         await discord_client.change_presence(status=discord.Status.dnd, activity=activity)
 
-        desc = ("Please use this channel to paste a screenshot of your enemy base. It will be helpful to "
-        "annotate the screenshot with arrows along with your thought process of how you're going to wreck your enemy. "
-        "Then go ahead a ping your friends to get feedback! Happy warring.")
-        desc_Helper = ("Use the @Helpers first to see if there is anyone assigned for assisting on.")
-        desc_TH =("Alternatively you can use the @TH# tag to get advice from folks in your TH level.")
-        desc_leader=("Lastly, if those two fail you can always tag our leaders with @CoC Leadership")
 
-        
-        embed = Embed(title='WELCOME!', description= desc, color=0x8A2BE2)
-        embed.add_field(name="@Helpers", value=desc_Helper, inline=True)
-        embed.add_field(name="@TH#s", value=desc_TH, inline=True)
-        embed.add_field(name="@CoC Leadership", value=desc_leader, inline=True)
 
         async with ctx.typing():
             for key in config['categories'].keys():
@@ -569,7 +570,7 @@ async def purrrge(ctx):
                     if cat_obj.name.upper() == key.upper():
                         for channel_obj in cat_obj.channels:
                             deleted = await channel_obj.purge(bulk=True)
-                            await channel_obj.send(embed=embed)
+                            await channel_obj.send(embed=newchannel)
                             await ctx.send("Deleted {} message(s) from {}".format(len(deleted), channel_obj.name))
         
         game = discord.Game("with cat nip~")
@@ -577,29 +578,30 @@ async def purrrge(ctx):
         await ctx.send("All done!")
         return
 
-    if len(ctx.message.content.split(' ')) == 2 or len(ctx.message.content.split(' ')) == 3:
-        valid = False
+    elif len(ctx.message.content.split(' ')) == 2 or len(ctx.message.content.split(' ')) == 3:
+        cat_valid = False
+        ch_valid = False
         cat_str = ' '.join(ctx.message.content.split(' ')[1:])
         for key in config['categories'].keys():
             if key.lower() == cat_str.lower():
-                valid = True
+                cat_valid = True
             else:
                 continue
 
         channel_ob = ''
-        if valid == False:
+        if cat_valid == False:
             for channel_obj in discord_client.get_all_channels():
                 if channel_obj.name.lower() == cat_str:
                     channel_ob = channel_obj
-                    valid = True
+                    ch_valid = True
                 else: 
                     continue
 
-        if valid == False:
+        if ch_valid == False and cat_valid == False:
             await ctx.send("Could not identify user input as either a category or channel. Aborting.")
             return
 
-        if valid:
+        if ch_valid:
             desc = ("I will now purge {}. This can not be undone. Please be sure to have archived this "
             "channel before proceeding. \n\nplease type to purge: KittyLitterBot".format(channel_ob.name))
             await ctx.send(embed = Embed(title='WARNING!', description= desc, color=0xFF0000)) 
@@ -610,9 +612,37 @@ async def purrrge(ctx):
                 return
             else:
                 pass
-            deleted = await channel_ob.purge(bulk=True)
-            await ctx.send("Deleted {} message(s) from {}".format(len(deleted), channel_ob.name))
-        
+
+            activity = discord.Activity(type = discord.ActivityType.watching, name="messages get nuked")
+            await discord_client.change_presence(status=discord.Status.dnd, activity=activity)
+
+            async with ctx.typing():
+                deleted = await channel_ob.purge(bulk=True)
+                await channel_ob.send(embed=newchannel)
+                await ctx.send("Deleted {} message(s) from {}".format(len(deleted), channel_ob.name))
+
+        if cat_valid:
+            desc = ("I will now purge {} category. This can not be undone. Please be sure to have archived this "
+            "channel before proceeding. \n\nplease type [KittyLitterBot] to purge".format(cat_str.upper()))
+            await ctx.send(embed = Embed(title='WARNING!', description= desc, color=0xFF0000))
+            msg = await discord_client.wait_for('message')
+            if msg.content != 'KittyLitterBot':
+                await ctx.send("You seem unsure. Going to abort.")
+                return
+            else:
+                pass
+
+            activity = discord.Activity(type = discord.ActivityType.watching, name="messages get nuked")
+            await discord_client.change_presence(status=discord.Status.dnd, activity=activity)
+
+            async with ctx.typing():
+                for cat_obj in discord_client.guilds[0].categories:
+                    if cat_obj.name.upper() == cat_str.upper():
+                        for channel_obj in cat_obj.channels:
+                            deleted = await channel_obj.purge(bulk=True)
+                            await channel_obj.send(embed=newchannel)
+                            await ctx.send("Deleted {} message(s) from {}".format(len(deleted), channel_obj.name))
+
         game = discord.Game("with cat nip~")
         await discord_client.change_presence(status=discord.Status.online, activity=game)                       
         await ctx.send("All done!")
